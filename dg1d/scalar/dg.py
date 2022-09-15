@@ -17,22 +17,23 @@ sqrt3 = np.sqrt(3.0)
 
 # Get arguments
 parser = argparse.ArgumentParser()
-parser.add_argument('-pde', choices=('linear','varadv','burger'), help='PDE', 
+parser.add_argument('-pde', choices=('linear','varadv','burger','bucklev'), help='PDE',
                     default='linear')
 parser.add_argument('-ncell', type=int, help='Number of cells', default=50)
 parser.add_argument('-degree', type=int, help='Polynomial degree', default=1)
 parser.add_argument('-cfl', type=float, help='CFL number', default=0.9)
 parser.add_argument('-Tf', type=float, help='Final time', default=1.0)
-parser.add_argument('-plot_freq', type=int, help='Frequency to plot solution', 
+parser.add_argument('-plot_freq', type=int, help='Frequency to plot solution',
                     default=1)
-parser.add_argument('-ic', choices=('sin2pi','sin4pi','gauss','hat','mult'),
+parser.add_argument('-ic', choices=('sin2pi','sin4pi','gauss','hat','mult',
+                                    'hatbuck'),
                     help='Initial condition', default='sin2pi')
-parser.add_argument('-limit', choices=('no','yes'), help='Apply limiter', 
+parser.add_argument('-limit', choices=('no','yes'), help='Apply limiter',
                     default='no')
 parser.add_argument('-tvbM', type=float, help='TVB M parameter', default=0.0)
-parser.add_argument('-compute_error', choices=('no','yes'), 
+parser.add_argument('-compute_error', choices=('no','yes'),
                     help='Compute error norm', default='no')
-parser.add_argument('-num_flux', choices=('central','upwind','roe','godunov'),
+parser.add_argument('-num_flux', choices=('central','upwind','roe','godunov', 'rusanov'),
                     help='Numerical flux', default='upwind')
 args = parser.parse_args()
 
@@ -53,6 +54,12 @@ elif args.pde == 'burger':
         numflux = roe_flux
     else:
         numflux = godunov_flux
+elif args.pde == 'bucklev':
+    from bucklev import *
+    if args.num_flux == 'upwind':
+        numflux = upwind
+    else:
+        numflux = rusanov
 else:
     print('PDE not implemented')
     exit()
@@ -68,6 +75,8 @@ elif args.ic == 'hat':
     from hat import *
 elif args.ic == 'mult':
     from mult import *
+elif args.ic == 'hatbuck':
+    from hatbuck import *
 else:
     print('Unknown initial condition')
     exit()
@@ -106,6 +115,14 @@ bm, bp = np.zeros(nd), np.zeros(nd)
 for i in range(nd):
     bm[i] = shape_value(i,-1.0)
     bp[i] = shape_value(i,+1.0)
+
+# Compute cell average
+def compute_average(u1,wg):
+    nc = u1.shape[0]
+    ua = np.zeros(nc)
+    for i in range(nc):
+       ua[i] = u1[i,:].dot(wg)
+    return ua
 
 # Initialize plot
 def init_plot(ax,u0):
@@ -149,7 +166,7 @@ res= np.zeros((nc,nd)) # residual
 for i in range(nc):
     xc = xmin + i*dx + 0.5*dx # cell center
     x  = xc + 0.5*dx*xg       # transform gauss points to real cell
-    val= initial_condition(x)
+    val= initial_condition(x, t= 0.0)
     for j in range(nd):
         u1[i,j] = 0.5 * val.dot(Vf[:,j]*wg)
 
@@ -232,9 +249,22 @@ if args.compute_error == 'yes':
         # Exact solution at gauss points
         xc = xmin + i*dx + 0.5*dx # cell center
         x  = xc + 0.5*dx*xg       # transform gauss points to cell
-        ue = initial_condition(x)
+        ue = initial_condition(x, t= 0.0)
         error_norm += 0.5 * dx * np.sum( (un-ue)**2 * wg )
 
     print('L2 error norm = %e\n' % np.sqrt(error_norm))
+
+# Plot final cell average solution
+plt.figure()
+xplot = np.linspace(xmin,xmax,500)
+uplot = initial_condition(xplot, t)
+plt.plot(xplot,uplot)
+xg, wg = np.polynomial.legendre.leggauss(Nq)
+ua = compute_average(u1, wg)
+plt.title(str(nc)+' cells, Deg = '+str(k)+', CFL = '+str(round(cfl,3))+
+        ', t = '+str(round(t,3)))
+plt.plot(xmin+np.arange(nc)*dx+0.5*dx,ua,'s')
+plt.xlabel('x')
+plt.ylabel('u')
 
 plt.show() # Dont close window at end of program

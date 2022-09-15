@@ -1,5 +1,5 @@
 xmin, xmax = -1.0, 1.0
-def initial_condition(x):
+def initial_condition(x, t= 0.0):
     from numpy import exp,abs,sqrt,log,empty_like
     f = empty_like(x)
     for i,y in enumerate(x):
