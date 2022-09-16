@@ -82,22 +82,6 @@ def exact_soln_hatbuck(x,t,shock):
       f[i] = 0.0
   return f
 
-# Only works for time until the rarefactions intersect
-def initial_condition(x, t=0.0):
-    y = np.empty_like(x)
-    for i, xx in enumerate(x):
-        if xx <= -0.5:
-            y[i] =  0.0
-        elif -0.5 < xx <= -0.5+fprime(u_ss)*t:
-            y[i] = inv_f_ss((xx+0.5)/t)
-        elif -0.5+fprime(u_ss)*t < xx <= 0.0:
-            y[i] = 1.0
-        elif 0.0 < xx <= fprime(u_s)*t:
-            y[i] = inv_f_s(xx/t)
-        else:
-            y[i] = 0.0
-    return y
-
 Tf = args.Tf
 dt = Tf/1000.0
 t = 0.0
@@ -111,5 +95,4 @@ while t < Tf:
 M = args.ncell
 dx = 2.0/M
 xc = xmin + np.arange(M)*dx + 0.5*dx # cell centers
-# np.savetxt('exact.txt', np.column_stack([xc, initial_condition(xc, t)]))
 np.savetxt('exact.txt', np.column_stack([xc, exact_soln_hatbuck(xc, t, shock)]))
