@@ -1,7 +1,8 @@
 import numpy as np
 from bucklev import *
 import argparse
-from scipy import optimize
+from scipy import optimize,integrate
+from numpy import sqrt
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-Tf', type = float, help = 'Time of plotting solution',
@@ -43,6 +44,44 @@ def inv_f_ss(v):
     output = optimize.brentq(p, 0.0, u_buck) # Gives root of polynomial
     return output
 
+# To compute the exact solution, we need all shock locations for all time
+# The shock location between the two rarefaction waves needs to be computed
+# by solving the ode s'(t)=(f_l-f_r)/(u_l-u_r) for the particular time
+def update_shock(shock,t,dt):
+    def rh(shock,t):
+      u_l = inv_f_ss((shock+0.5)/t)
+      u_r = inv_f_s(shock/t)
+      f_l = flux(0.0,u_l)
+      f_r = flux(0.0,u_r)
+      dsdt = (f_l-f_r)/(u_l-u_r)
+      return dsdt
+    # This is the time where rarefaction characteristics intersect
+    if t>=1./(2.*fprime(u_ss)):
+      time = [t,t+dt]
+      output = integrate.odeint(rh,shock,time,rtol = 1e-5)
+      return output[1]
+    else:
+      return 0.0
+
+def exact_soln_hatbuck(x,t,shock):
+  f = np.empty_like(x)
+  f_u_s,f_u_ss = fprime(u_s),fprime(u_ss) # f'(u_s),f'(u_ss)
+  for i,xx in enumerate(x):
+    if xx <= -0.5:
+      f[i] = 0.0
+    elif xx>-0.5 and xx <= -0.5+f_u_ss*t:
+      f[i] = inv_f_ss((xx-(-0.5))/t)
+    elif xx>=-0.5+f_u_ss*t and xx <= 0.0:
+      f[i] = 1.0
+    elif xx>=0.0 and xx <=f_u_s*t:
+      if xx>= shock:
+        f[i] = inv_f_s(xx/t)
+      else:
+        f[i] = inv_f_ss((xx-(-0.5))/t)
+    else:
+      f[i] = 0.0
+  return f
+
 # Only works for time until the rarefactions intersect
 def initial_condition(x, t=0.0):
     y = np.empty_like(x)
@@ -59,8 +98,18 @@ def initial_condition(x, t=0.0):
             y[i] = 0.0
     return y
 
-t = args.Tf
+Tf = args.Tf
+dt = Tf/1000.0
+t = 0.0
+shock = 0.0
+while t < Tf:
+    if (t+dt)>Tf:
+        dt = Tf-t
+    shock = update_shock(shock, t, dt) # Gives shock for solution at t+dt
+    t += dt
+
 M = args.ncell
 dx = 2.0/M
 xc = xmin + np.arange(M)*dx + 0.5*dx # cell centers
-np.savetxt('exact.txt', np.column_stack([xc, initial_condition(xc, t)]))
+# np.savetxt('exact.txt', np.column_stack([xc, initial_condition(xc, t)]))
+np.savetxt('exact.txt', np.column_stack([xc, exact_soln_hatbuck(xc, t, shock)]))
