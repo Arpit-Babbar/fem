@@ -1,7 +1,13 @@
 import numpy as np
 from bucklev import *
+import argparse
 from scipy import optimize
 
+parser = argparse.ArgumentParser()
+parser.add_argument('-Tf', type = float, help = 'Time of plotting solution',
+                    default = 0.4)
+parser.add_argument('-ncell', type = int, help = 'Number of cells', default = 100)
+args = parser.parse_args()
 
 xmin, xmax = -1.0, 1.0
 def hatbuck(x):
@@ -53,4 +59,8 @@ def initial_condition(x, t=0.0):
             y[i] = 0.0
     return y
 
-
+t = args.Tf
+M = args.ncell
+dx = 2.0/M
+xc = xmin + np.arange(M)*dx + 0.5*dx # cell centers
+np.savetxt('exact.txt', np.column_stack([xc, initial_condition(xc, t)]))
